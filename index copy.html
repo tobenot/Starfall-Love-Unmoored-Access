@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYSTEM_ACCESS // STARFALL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'mono': ['"JetBrains Mono"', 'monospace'],
+                        'serif': ['"Noto Serif SC"', 'serif'],
+                    },
+                    colors: {
+                        'term-green': '#0f0',
+                        'term-cyan': '#00ffff',
+                        'term-red': '#ff003c',
+                        'term-bg': '#050505',
+                        'term-gray': '#333',
+                    },
+                    animation: {
+                        'blink': 'blink 1s step-end infinite',
+                        'glitch': 'glitch 1s linear infinite',
+                    },
+                    keyframes: {
+                        blink: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #000;
+            color: #e0e0e0;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        .terminal-window {
+            background: rgba(5, 5, 5, 0.85);
+            border: 1px solid #333;
+            box-shadow: 0 0 0 1px #000;
+            backdrop-filter: blur(4px);
+            position: relative;
+            z-index: 10;
+        }
+
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 10;
+            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0, 255, 255, 0.02) 50%, rgba(0,0,0,0) 100%);
+            opacity: 0.1;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 10s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -100px; }
+        }
+
+        .glitch-text {
+            position: relative;
+        }
+        
+        .glitch-text::before,
+        .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+        }
+        
+        .glitch-text::before {
+            left: 2px;
+            text-shadow: -1px 0 #ff003c;
+            clip: rect(24px, 550px, 90px, 0);
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+        
+        .glitch-text::after {
+            left: -2px;
+            text-shadow: -1px 0 #00ffff;
+            clip: rect(85px, 550px, 140px, 0);
+            animation: glitch-anim 2.5s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% { clip: rect(12px, 9999px, 32px, 0); }
+            20% { clip: rect(84px, 9999px, 15px, 0); }
+            40% { clip: rect(23px, 9999px, 86px, 0); }
+            60% { clip: rect(3px, 9999px, 5px, 0); }
+            80% { clip: rect(65px, 9999px, 33px, 0); }
+            100% { clip: rect(44px, 9999px, 91px, 0); }
+        }
+
+        @keyframes glitch-anim-2 {
+            0% { clip: rect(65px, 9999px, 100px, 0); }
+            20% { clip: rect(3px, 9999px, 34px, 0); }
+            40% { clip: rect(76px, 9999px, 2px, 0); }
+            60% { clip: rect(12px, 9999px, 56px, 0); }
+            80% { clip: rect(43px, 9999px, 12px, 0); }
+            100% { clip: rect(8px, 9999px, 92px, 0); }
+        }
+
+        .btn-cyber {
+            position: relative;
+            background: transparent;
+            color: #00ffff;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            overflow: hidden;
+        }
+        
+        .btn-cyber:hover {
+            background: #00ffff;
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        .border-corner {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border: 2px solid #00ffff;
+            transition: all 0.3s;
+        }
+        .tl { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .tr { top: -1px; right: -1px; border-left: none; border-bottom: none; }
+        .bl { bottom: -1px; left: -1px; border-right: none; border-top: none; }
+        .br { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        ::selection {
+            background: #ff003c;
+            color: #fff;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 font-mono">
+    <canvas id="matrix"></canvas>
+
+    <main class="w-full max-w-5xl terminal-window p-1">
+        <div class="border border-term-gray/50 p-6 md:p-10 relative bg-term-bg/90">
+            <!-- Corners -->
+            <div class="border-corner tl"></div>
+            <div class="border-corner tr"></div>
+            <div class="border-corner bl"></div>
+            <div class="border-corner br"></div>
+
+            <!-- Header -->
+            <header class="flex justify-between items-start mb-12 border-b border-term-gray pb-4">
+                <div class="flex flex-col">
+                    <span class="text-xs text-term-gray mb-1">PROJECT_ID: STARFALL</span>
+                    <h1 class="text-4xl md:text-5xl font-bold text-white tracking-tighter uppercase glitch-text" data-text="[星辉落：爱无归处]">
+                        [星辉落：爱无归处]
+                    </h1>
+                    <h2 class="text-lg text-term-cyan mt-2 tracking-widest uppercase">>>> STARFALL_LOVE_UNMOORED.exe</h2>
+                </div>
+                <div class="hidden md:block text-right">
+                    <div class="text-xs text-term-red animate-pulse">SYSTEM STATUS: UNSTABLE</div>
+                    <div class="text-xs text-term-gray mt-1">MEM_ALLOC: 0x8F442A</div>
+                    <div class="text-xs text-term-gray">COGNITION: FRAGMENTED</div>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+                <!-- Left Column: Story Data -->
+                <div class="md:col-span-7 space-y-8">
+                    <div class="border-l-2 border-term-red pl-4">
+                        <h3 class="text-term-red font-bold uppercase text-sm mb-2">> [NARRATIVE_SUMMARY]</h3>
+                        <p class="text-gray-300 leading-relaxed font-serif text-lg">
+                            故事已经发生了。<br>
+                            你的选择决定一个人怎么记住它，怎么带着它活下去。
+                        </p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-400">
+                            > ACCESSING DATABASE...<br>
+                            > SUBJECT: LUO_BEI<br>
+                            > LOCATION: VIRTUAL_SPACE_XINGMING
+                        </p>
+                        <p class="text-gray-300 leading-relaxed">
+                            一部关于虚拟亲密关系中的情感创伤的互动叙事 / 视觉小说。<br>
+                            萝北在一个叫做「星铭世界」的虚拟空间里，遇见了她爱的人。<br>
+                            爱过碎过，又试着站起来。
+                        </p>
+                    </div>
+
+                    <div class="mt-8 border border-term-gray p-4 bg-black/50">
+                        <h4 class="text-term-cyan text-sm font-bold uppercase mb-4 border-b border-term-gray pb-2 flex justify-between">
+                            <span>// VOICES_SYSTEM_DUMP</span>
+                            <span class="text-xs font-normal opacity-50">THREAD_COUNT: 6</span>
+                        </h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm font-mono tracking-tighter">
+                            <div class="flex items-center gap-2 border-b border-term-gray/30 pb-1"><span class="text-term-red font-bold uppercase w-12">[灯笼]</span> <span class="text-term-cyan/50">::</span> <span class="text-gray-300">只要给得够多</span></div>
+                            <div class="flex items-center gap-2 border-b border-term-gray/30 pb-1"><span class="text-term-red font-bold uppercase w-12">[墨水]</span> <span class="text-term-cyan/50">::</span> <span class="text-gray-300">是我不够好</span></div>
+                            <div class="flex items-center gap-2 border-b border-term-gray/30 pb-1"><span class="text-term-red font-bold uppercase w-12">[利刃]</span> <span class="text-term-cyan/50">::</span> <span class="text-gray-300">她们是混蛋</span></div>
+                            <div class="flex items-center gap-2 border-b border-term-gray/30 pb-1"><span class="text-term-red font-bold uppercase w-12">[镜面]</span> <span class="text-term-cyan/50">::</span> <span class="text-gray-300">分析正在发生什么</span></div>
+                            <div class="flex items-center gap-2 border-b border-term-gray/30 pb-1"><span class="text-term-red font-bold uppercase w-12">[烈焰]</span> <span class="text-term-cyan/50">::</span> <span class="text-gray-300">痛苦像一首诗</span></div>
+                            <div class="flex items-center gap-2 border-b border-term-gray/30 pb-1"><span class="text-term-red font-bold uppercase w-12">[微尘]</span> <span class="text-term-cyan/50">::</span> <span class="text-gray-300">人生没有意义</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Access Control -->
+                <div class="md:col-span-5 flex flex-col justify-between">
+                    
+                    <div class="mb-8">
+                        <div class="bg-term-gray/10 border border-term-gray p-2 mb-4">
+                            <div class="text-xs text-term-gray mb-2 uppercase">Warning / Content Advisory</div>
+                            <ul class="text-xs text-term-red space-y-1 list-none">
+                                <li>[!] 情感创伤、焦虑型依恋</li>
+                                <li>[!] 虚拟关系中的背叛与操控</li>
+                                <li>[!] 解离与习得性无助描写</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="border-2 border-term-cyan p-6 relative bg-black">
+                        <div class="absolute -top-3 left-4 bg-black px-2 text-term-cyan text-sm font-bold">ACCESS_PANEL</div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-xs text-term-gray mb-1 uppercase">Passcode Required</label>
+                            <div class="flex items-stretch">
+                                <code id="password" class="flex-1 bg-black border border-term-cyan p-2 text-term-cyan font-bold tracking-widest text-center select-all flex items-center justify-center">carrotletter</code>
+                                <button onclick="copyPassword()" class="btn-cyber border border-term-cyan px-4 py-2 text-xs font-bold border-l-0 transition-colors" title="COPY">
+                                    [COPY]
+                                </button>
+                            </div>
+                            <div id="copy-msg" class="text-xs text-term-green mt-1 h-4 opacity-0 transition-opacity">
+                                >> COPIED_TO_CLIPBOARD
+                            </div>
+                        </div>
+
+                        <a href="https://tobenot.itch.io/starfall" target="_blank" class="block w-full btn-cyber py-4 text-center font-bold text-lg group bg-term-cyan/10 border-2 border-term-cyan transition-colors shadow-[0_0_15px_rgba(0,255,255,0.2)] hover:shadow-[0_0_25px_rgba(0,255,255,0.6)] hover:bg-term-cyan hover:text-black mt-2">
+                            <span class="mr-2 group-hover:hidden">></span>
+                            <span class="hidden group-hover:inline-block mr-2 animate-blink">_</span>
+                            [ INITIALIZE_DEMO ]
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="mt-12 pt-4 border-t border-term-gray flex justify-between items-center text-xs text-term-gray uppercase">
+                <div>Version: 0.9.1 (DEMO)</div>
+                <div>© 2026 TOBENOT</div>
+            </footer>
+        </div>
+        <div class="scanline"></div>
+    </main>
+
+    <script>
+        // Matrix Rain Effect
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        let cols = Math.floor(width / 20) + 1;
+        let ypos = Array(cols).fill(0);
+
+        // Characters to use (Katakana + Numbers)
+        const chars = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        function matrix() {
+            ctx.fillStyle = '#0001';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.fillStyle = '#0f0';
+            ctx.font = '15px monospace';
+
+            ypos.forEach((y, ind) => {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                const x = ind * 20;
+                
+                // Randomly change color for some characters to white or cyan for glitch effect
+                if (Math.random() > 0.98) {
+                     ctx.fillStyle = '#fff';
+                } else if (Math.random() > 0.95) {
+                    ctx.fillStyle = '#0ff';
+                } else {
+                    ctx.fillStyle = '#0f0'; // Standard matrix green
+                }
+
+                ctx.fillText(text, x, y);
+
+                if (y > 100 + Math.random() * 10000) ypos[ind] = 0;
+                else ypos[ind] = y + 20;
+            });
+        }
+
+        setInterval(matrix, 50);
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            ypos.length = Math.floor(width / 20) + 1;
+            ypos.fill(0);
+        });
+
+        // Copy function
+        function copyPassword() {
+            const pwd = document.getElementById('password').innerText;
+            navigator.clipboard.writeText(pwd).then(() => {
+                const msg = document.getElementById('copy-msg');
+                msg.style.opacity = '1';
+                setTimeout(() => {
+                    msg.style.opacity = '0';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
